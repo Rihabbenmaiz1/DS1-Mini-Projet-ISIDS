@@ -22,11 +22,8 @@ router.post(
       let user = await User.findOne({ login });
       if (user) return res.status(400).json({ msg: 'هذا اليوزر موجود مسبقاً' });
 
-      // Hash password
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(password, salt);
-
-      user = new User({ nom, login, password: hashedPassword, role: role || 'user' });
+      // NE PAS hasher ici : le pre('save') dans UserSchema s'en charge
+      user = new User({ nom, login, password, role: role || 'user' });
       await user.save();
 
       const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
@@ -54,7 +51,13 @@ router.post(
       const user = await User.findOne({ login });
       if (!user) return res.status(400).json({ msg: 'يوزر غير موجود' });
 
+      // Logs pour debug
+      console.log('Mot de passe entré:', password);
+      console.log('Mot de passe hashé DB:', user.password);
+
       const isMatch = await bcrypt.compare(password, user.password);
+      console.log('Résultat compare:', isMatch);
+
       if (!isMatch) return res.status(400).json({ msg: 'كلمة السر خاطئة' });
 
       const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
@@ -67,6 +70,7 @@ router.post(
 );
 
 module.exports = router;
+
 
 
 
