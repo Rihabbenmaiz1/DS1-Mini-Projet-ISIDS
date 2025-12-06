@@ -25,12 +25,12 @@ Fonctionnalités :
 \- Tri et recherche des projets et des tâches
 
 
-
 Technologies utilisées :
 
 \- Express.js
 
 \- MongoDB
 
+********"Le fichier localhost-5000.postman_collection.json contient l’ensemble des tests Postman de l’API."
 
 
