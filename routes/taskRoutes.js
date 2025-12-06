@@ -18,11 +18,9 @@ router.post('/', auth, async (req, res) => {
 
     // التأكد أن المشروع كاين
     const projet = await Project.findById(projetId);
-    if (!projet) {
-      return res.status(404).json({ msg: "المشروع ما كاينش" });
-    }
+    if (!projet) return res.status(404).json({ msg: "المشروع ما كاينش" });
 
-    // Si utilisateur normal veut assigner une tâche → interdit
+    // User عادي ما يقدرش يعين مستخدم آخر
     if (utilisateurId && req.user.role !== 'manager') {
       return res.status(403).json({ msg: "غير مسموحلك تعين مستخدم" });
     }
@@ -38,11 +36,7 @@ router.post('/', auth, async (req, res) => {
     });
 
     await task.save();
-
-    res.status(201).json({
-      msg: "التاسك تزاد بنجاح",
-      task
-    });
+    res.status(201).json({ msg: "التاسك تزاد بنجاح", task });
 
   } catch (err) {
     console.error("Erreur création task :", err);
@@ -50,26 +44,31 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
-// -------- OBTENIR LES TÂCHES D’UN PROJET --------
-router.get('/projet/:projetId', auth, async (req, res) => {
+// -------- OBTENIR LES TÂCHES (avec tri et recherche) --------
+router.get('/', auth, async (req, res) => {
   try {
-    const { projetId } = req.params;
+    let { sort, order, search } = req.query;
 
-    // التأكد أن المشروع كاين
-    const projet = await Project.findById(projetId);
-    if (!projet) return res.status(404).json({ msg: "المشروع ما كاينش" });
+    // valeurs par défaut
+    sort = sort || 'dateCreation';
+    order = order === 'desc' ? -1 : 1;
 
-    let tasks;
-    if (req.user.role === 'manager') {
-      // Manager يشوف جميع التاسكات
-      tasks = await Task.find({ projet: projetId }).populate('utilisateur', 'nom login');
-    } else {
-      // User عادي يشوف غير التاسكات ديالو
-      if (projet.proprietaire.toString() !== req.user.id) {
-        return res.status(403).json({ msg: "ماعندكش الحق تشوف هاد المشروع" });
-      }
-      tasks = await Task.find({ projet: projetId });
+    let filter = {};
+
+    // User normal → ne voit que ses tâches
+    if (req.user.role !== 'manager') {
+      filter.utilisateur = req.user.id;
     }
+
+    // Recherche par titre
+    if (search) {
+      filter.titre = { $regex: search, $options: 'i' };
+    }
+
+    const tasks = await Task.find(filter)
+      .sort({ [sort]: order })
+      .populate('projet', 'nom')
+      .populate('utilisateur', 'nom login');
 
     res.json(tasks);
 
@@ -79,18 +78,45 @@ router.get('/projet/:projetId', auth, async (req, res) => {
   }
 });
 
+// -------- OBTENIR LES TÂCHES D’UN PROJET --------
+router.get('/projet/:projetId', auth, async (req, res) => {
+  try {
+    const { projetId } = req.params;
+    const projet = await Project.findById(projetId);
+    if (!projet) return res.status(404).json({ msg: "المشروع ما كاينش" });
+
+    let tasks;
+    if (req.user.role === 'manager') {
+      tasks = await Task.find({ projet: projetId })
+        .populate('utilisateur', 'nom login');
+    } else {
+      if (projet.proprietaire.toString() !== req.user.id) {
+        return res.status(403).json({ msg: "ماعندكش الحق تشوف هاد المشروع" });
+      }
+      tasks = await Task.find({ projet: projetId });
+    }
+
+    res.json(tasks);
+
+  } catch (err) {
+    console.error("Erreur get tasks by project :", err);
+    res.status(500).json({ msg: "خطأ فالسيرفر" });
+  }
+});
+
 // -------- OBTENIR LES TÂCHES D’UN UTILISATEUR --------
 router.get('/user/:userId', auth, async (req, res) => {
   try {
     const { userId } = req.params;
 
-    // User عادي ما يقدرش يشوف التاسكات ديال مستخدم آخر
     if (req.user.role !== 'manager' && req.user.id !== userId) {
       return res.status(403).json({ msg: "ماعندكش الحق تشوف هاد التاسكات" });
     }
 
-    // Manager أو المستخدم المصرح به يشوف التاسكات
-    const tasks = await Task.find({ utilisateur: userId }).populate('projet', 'nom');
+    const tasks = await Task.find({ utilisateur: userId })
+      .populate('projet', 'nom')
+      .populate('utilisateur', 'nom login');
+
     res.json(tasks);
 
   } catch (err) {
@@ -107,12 +133,10 @@ router.put('/:id', auth, async (req, res) => {
     const task = await Task.findById(req.params.id);
     if (!task) return res.status(404).json({ msg: "التاسك ما كاينش" });
 
-    // Seul manager peut réassigner
     if (utilisateurId && req.user.role !== 'manager') {
       return res.status(403).json({ msg: "غير مسموحلك تعين مستخدم" });
     }
 
-    // تحديث الحقول
     if (titre) task.titre = titre;
     if (description) task.description = description;
     if (statut) {
@@ -126,7 +150,6 @@ router.put('/:id', auth, async (req, res) => {
     if (utilisateurId) task.utilisateur = utilisateurId;
 
     await task.save();
-
     res.json({ msg: "التاسك تبدل بنجاح", task });
 
   } catch (err) {
@@ -141,13 +164,12 @@ router.delete('/:id', auth, async (req, res) => {
     const task = await Task.findById(req.params.id);
     if (!task) return res.status(404).json({ msg: "التاسك ما كاينش" });
 
-    // Seul propriétaire du projet ou manager peut supprimer
     const projet = await Project.findById(task.projet);
     if (req.user.role !== 'manager' && projet.proprietaire.toString() !== req.user.id) {
       return res.status(403).json({ msg: "ماعندكش الحق تحذف هاد التاسك" });
     }
 
-    await task.remove();
+    await Task.deleteOne({ _id: task._id });
     res.json({ msg: "التاسك تحيد بنجاح" });
 
   } catch (err) {
@@ -157,3 +179,4 @@ router.delete('/:id', auth, async (req, res) => {
 });
 
 module.exports = router;
+

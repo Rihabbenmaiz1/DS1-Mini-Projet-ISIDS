@@ -14,6 +14,8 @@ app.use(express.json());
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/test', require('./routes/test'));
 app.use('/api/projects', require('./routes/projectRoutes')); // <--- ROUTE DES PROJETS
+app.use('/api/tasks', require('./routes/taskRoutes'));
+
 
 // Test route simple
 app.get('/', (req, res) => res.send('API DS1 Mini-Projet ISIDS fonctionne ✅'));
