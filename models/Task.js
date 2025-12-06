@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 
-// هنا كنديرو ال schema ديال ال tasks
 const TaskSchema = new mongoose.Schema({
   titre: {
     type: String,
@@ -11,7 +10,7 @@ const TaskSchema = new mongoose.Schema({
   },
   statut: {
     type: String,
-    enum: ['todo', 'doing', 'done'], // فقط هادو بجوج ديال ال status
+    enum: ['todo', 'doing', 'done'],
     default: 'todo',
   },
   deadline: {
@@ -22,7 +21,7 @@ const TaskSchema = new mongoose.Schema({
     ref: 'Project',
     required: true,
   },
-  utilisateurAssigné: {
+  utilisateur: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
   },
@@ -33,3 +32,4 @@ const TaskSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('Task', TaskSchema);
+
